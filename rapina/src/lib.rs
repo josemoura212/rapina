@@ -145,6 +145,8 @@ pub mod prelude {
     pub use crate::middleware::{
         KeyExtractor, Middleware, Next, RateLimitConfig, RequestLogConfig,
     };
+    #[cfg(feature = "tower")]
+    pub use crate::middleware::{RapinaService, TowerLayerMiddleware};
     pub use crate::observability::TracingConfig;
     #[cfg(feature = "database")]
     pub use crate::pagination::{Paginate, Paginated, PaginationConfig};

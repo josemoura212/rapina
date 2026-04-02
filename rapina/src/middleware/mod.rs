@@ -17,6 +17,8 @@ mod cors;
 mod rate_limit;
 mod request_log;
 mod timeout;
+#[cfg(feature = "tower")]
+mod tower_compat;
 mod trace_id;
 
 pub use body_limit::BodyLimitMiddleware;
@@ -26,6 +28,8 @@ pub use cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsConfig, CorsM
 pub use rate_limit::{KeyExtractor, RateLimitConfig, RateLimitMiddleware};
 pub use request_log::{RequestLogConfig, RequestLogMiddleware};
 pub use timeout::TimeoutMiddleware;
+#[cfg(feature = "tower")]
+pub use tower_compat::{RapinaService, TowerLayerMiddleware};
 pub use trace_id::{TRACE_ID_HEADER, TraceIdMiddleware};
 
 use std::future::Future;
