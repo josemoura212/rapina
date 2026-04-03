@@ -172,7 +172,8 @@ pub struct RapinaService {
 }
 
 impl RapinaService {
-    pub fn new(router: Router, state: AppState, middlewares: MiddlewareStack) -> Self {
+    pub fn new(mut router: Router, state: AppState, middlewares: MiddlewareStack) -> Self {
+        router.freeze();
         Self {
             router: Arc::new(router),
             state: Arc::new(state),
@@ -266,5 +267,21 @@ mod tests {
 
         assert_eq!(response.status(), http::StatusCode::OK);
         assert_eq!(response.text(), "hello tower");
+    }
+
+    #[tokio::test]
+    async fn test_rapina_service_routes_requests() {
+        use crate::app::Rapina;
+        use crate::testing::TestClient;
+
+        let app = Rapina::new()
+            .with_introspection(false)
+            .router(Router::new().route(http::Method::GET, "/ping", |_, _, _| async { "pong" }));
+
+        let client = TestClient::new(app).await;
+        let response = client.get("/ping").send().await;
+
+        assert_eq!(response.status(), http::StatusCode::OK);
+        assert_eq!(response.text(), "pong");
     }
 }

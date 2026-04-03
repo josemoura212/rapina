@@ -403,9 +403,11 @@ Use `.layer()` to add any Tower `Layer` to the middleware stack:
 
 ```rust
 use rapina::prelude::*;
+use tower::timeout::TimeoutLayer;
+use std::time::Duration;
 
 Rapina::new()
-    .layer(my_tower_layer)
+    .layer(TimeoutLayer::new(Duration::from_secs(30)))
     .discover()
     .listen("127.0.0.1:3000")
     .await
@@ -415,9 +417,11 @@ Or wrap it explicitly with `TowerLayerMiddleware`:
 
 ```rust
 use rapina::middleware::TowerLayerMiddleware;
+use tower::timeout::TimeoutLayer;
+use std::time::Duration;
 
 Rapina::new()
-    .middleware(TowerLayerMiddleware::new(my_tower_layer))
+    .middleware(TowerLayerMiddleware::new(TimeoutLayer::new(Duration::from_secs(30))))
     .discover()
     .listen("127.0.0.1:3000")
     .await

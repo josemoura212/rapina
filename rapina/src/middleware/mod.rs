@@ -145,7 +145,7 @@ impl MiddlewareStack {
         self.middlewares.push(middleware);
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &self,
         req: Request<Incoming>,
         router: Arc<Router>,
