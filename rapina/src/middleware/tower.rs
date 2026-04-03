@@ -28,34 +28,38 @@ use crate::state::AppState;
 
 // ─── Direction A: Tower Layer → Rapina Middleware ────────────────────────────
 
-/// A one-shot [`tower::Service`] that delegates to [`Next::run`].
+/// A [`tower::Service`] that delegates to the Rapina middleware chain.
 ///
-/// Created internally by [`TowerLayerMiddleware`] on each request. The service
-/// consumes itself on call (via `Option::take`), which is correct because each
-/// request gets a fresh `Next`.
-pub(crate) struct NextService<'a> {
-    inner: Option<Next<'a>>,
+/// Owns all data needed to execute the chain, with no lifetime parameter.
+/// This makes it compatible with any Tower layer — including those requiring
+/// `Clone` (e.g. tower-resilience, retry, circuit breaker).
+#[derive(Clone)]
+pub(crate) struct NextService {
+    middlewares: Vec<Arc<dyn Middleware>>,
+    router: Arc<Router>,
+    state: Arc<AppState>,
+    ctx: RequestContext,
 }
 
-impl<'a> Service<Request<Incoming>> for NextService<'a> {
+impl Service<Request<Incoming>> for NextService {
     type Response = Response<BoxBody>;
     type Error = Infallible;
-    type Future = Pin<Box<dyn Future<Output = Result<Response<BoxBody>, Infallible>> + Send + 'a>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Response<BoxBody>, Infallible>> + Send>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: Request<Incoming>) -> Self::Future {
-        match self.inner.take() {
-            Some(next) => Box::pin(async move { Ok(next.run(req).await) }),
-            None => {
-                tracing::error!("NextService::call invoked more than once");
-                Box::pin(async {
-                    Ok(crate::error::Error::internal("internal server error").into_response())
-                })
-            }
-        }
+        let middlewares = self.middlewares.clone();
+        let router = self.router.clone();
+        let state = self.state.clone();
+        let ctx = self.ctx.clone();
+
+        Box::pin(async move {
+            let next = Next::new(&middlewares, router, state, &ctx);
+            Ok(next.run(req).await)
+        })
     }
 }
 
@@ -102,13 +106,12 @@ impl<L: fmt::Debug> fmt::Debug for TowerLayerMiddleware<L> {
 
 impl<L> Middleware for TowerLayerMiddleware<L>
 where
-    L: for<'a> Layer<NextService<'a>> + Send + Sync + 'static,
-    for<'a> <L as Layer<NextService<'a>>>::Service:
-        Service<Request<Incoming>, Response = Response<BoxBody>> + Send + 'a,
-    for<'a> <<L as Layer<NextService<'a>>>::Service as Service<Request<Incoming>>>::Error:
-        fmt::Display + Send + 'a,
-    for<'a> <<L as Layer<NextService<'a>>>::Service as Service<Request<Incoming>>>::Future:
-        Send + 'a,
+    L: Layer<NextService> + Send + Sync + 'static,
+    <L as Layer<NextService>>::Service:
+        Service<Request<Incoming>, Response = Response<BoxBody>> + Send + 'static,
+    <<L as Layer<NextService>>::Service as Service<Request<Incoming>>>::Error:
+        fmt::Display + Send + 'static,
+    <<L as Layer<NextService>>::Service as Service<Request<Incoming>>>::Future: Send + 'static,
 {
     fn handle<'a>(
         &'a self,
@@ -118,7 +121,12 @@ where
     ) -> BoxFuture<'a, Response<BoxBody>> {
         Box::pin(async move {
             req.extensions_mut().insert(ctx.clone());
-            let next_svc = NextService { inner: Some(next) };
+            let next_svc = NextService {
+                middlewares: next.middlewares.to_vec(),
+                router: next.router.clone(),
+                state: next.state.clone(),
+                ctx: ctx.clone(),
+            };
             let mut svc = self.layer.layer(next_svc);
 
             if let Err(e) = std::future::poll_fn(|cx| svc.poll_ready(cx)).await {
@@ -197,7 +205,7 @@ impl Service<Request<Incoming>> for RapinaService {
                 }
             };
 
-            let response = middlewares.execute(req, &router, &state, &ctx).await;
+            let response = middlewares.execute(req, router, state, &ctx).await;
             Ok(response)
         })
     }

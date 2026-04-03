@@ -397,13 +397,13 @@ rapina = { version = "0.11.0", features = ["tower"] }
 
 ### Using Tower layers as middleware
 
-Use `.tower_layer()` to add any Tower `Layer` to the middleware stack:
+Use `.layer()` to add any Tower `Layer` to the middleware stack:
 
 ```rust
 use rapina::prelude::*;
 
 Rapina::new()
-    .tower_layer(my_tower_layer)
+    .layer(my_tower_layer)
     .discover()
     .listen("127.0.0.1:3000")
     .await

@@ -195,12 +195,12 @@ impl Rapina {
     /// use rapina::prelude::*;
     ///
     /// Rapina::new()
-    ///     .tower_layer(my_tower_layer)
+    ///     .layer(my_tower_layer)
     ///     .listen("127.0.0.1:3000")
     ///     .await
     /// ```
     #[cfg(feature = "tower")]
-    pub fn tower_layer<L>(self, layer: L) -> Self
+    pub fn layer<L>(self, layer: L) -> Self
     where
         crate::middleware::TowerLayerMiddleware<L>: Middleware,
     {
