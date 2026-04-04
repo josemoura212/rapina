@@ -131,7 +131,8 @@ where
 
             if let Err(e) = std::future::poll_fn(|cx| svc.poll_ready(cx)).await {
                 tracing::error!("tower service not ready: {}", e);
-                return crate::error::Error::internal("service unavailable").into_response();
+                return crate::error::Error::service_unavailable("service unavailable")
+                    .into_response();
             }
 
             match svc.call(req).await {
